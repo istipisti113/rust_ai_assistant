@@ -1,5 +1,5 @@
 {
-  description = "Rust Ai Assistant";
+  description = "Rust ai assistant";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,6 +18,8 @@
       pkgs = import nixpkgs { inherit system overlays; };
 
       runtimeDeps = with pkgs; [
+        alsa-lib
+        fontconfig
       ];
       buildDeps = with pkgs; [
         pkg-config
@@ -32,7 +34,7 @@
       };
 
       packages.${system}.default = pkgs.rustPlatform.buildRustPackage {
-        pname = "rust ai assistant";
+        pname = "raa";
         version = "0.1.0";
         src = ./.;
 
@@ -52,3 +54,4 @@
       };
     };
 }
+
