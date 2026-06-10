@@ -113,7 +113,7 @@ async fn handle_tool_call(tool_call: &Value, messages: &mut Vec<Value>) {
                 Err(_error) => {
                     messages.push(json!({
                         "role": "tool", "tool_call_id": tool_call["id"], "content": "content: ".to_owned() + &format!("{}", &output.unwrap_err())
-                }));
+                    }));
                 }
             }
         }
