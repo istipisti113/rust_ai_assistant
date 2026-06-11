@@ -1,8 +1,11 @@
+use core::panic;
 use std::collections::HashMap;
+//use std::sync::MutexGuard;
+use tokio::sync::MutexGuard;
 //use anyhow::Ok;
 use serde_json::{Value, json};
 use std::fmt::Display;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use once_cell::sync::Lazy;
 //use std::result::Result::Ok;
 
@@ -250,10 +253,10 @@ fn is_file_allowed(path: String) -> bool {
     true
 }
 
-async fn handle_tool_call(tool_call: &Value, app: &mut App<'_>) {
+async fn handle_tool_call(tool_call: &Value) -> (Vec<Value>, Vec<String>){
     let name = tool_call["function"]["name"].as_str().unwrap();
-    let mut messages: Vec<Value> = app.messages.clone();
-    let mut readable_messages = app.readable_messages.clone();
+    let mut messages: Vec<Value> = vec![];
+    let mut readable_messages = vec![];
     let args: Value = serde_json::from_str(tool_call["function"]["arguments"].as_str().unwrap()).unwrap();
 
     match name {
@@ -266,10 +269,11 @@ async fn handle_tool_call(tool_call: &Value, app: &mut App<'_>) {
                     "role": "tool", "tool_call_id": tool_call["id"], "content": format!("File access not allowed '{}'", file_path)
                 }));
                 readable_messages.push(format!("File access not allowed '{}'", file_path));
-                app.messages = messages;
-                app.readable_messages = readable_messages;
-                return;
+                //app.messages = messages;
+                //app.readable_messages = readable_messages;
+                return (messages, readable_messages);
             }
+
             match fs::read_to_string(file_path) {
                 Ok(contents) => {
                     messages.push(json!({
@@ -297,9 +301,9 @@ async fn handle_tool_call(tool_call: &Value, app: &mut App<'_>) {
                     "role": "tool", "tool_call_id": tool_call["id"], "content": format!("File access not allowed '{}'", file_path)
                 }));
                 readable_messages.push(format!("File access not allowed '{}'", file_path));
-                app.messages = messages;
-                app.readable_messages = readable_messages;
-                return;
+                //app.messages = messages;
+                //app.readable_messages = readable_messages;
+                return (messages, readable_messages);
             }
 
             std::fs::write(file_path, cont).unwrap();
@@ -318,9 +322,7 @@ async fn handle_tool_call(tool_call: &Value, app: &mut App<'_>) {
                     "role": "tool", "tool_call_id": tool_call["id"], "content": format!("{} is not an allowed command", cmd)
                 }));
                 readable_messages.push(format!("{} is not an allowed command", cmd));
-                app.messages = messages;
-                app.readable_messages = readable_messages;
-                return;
+                return (messages, readable_messages);
             }
             let output = Command::new("bash").arg("-c").arg(cmd).output();
             match &output {
@@ -374,63 +376,47 @@ async fn handle_tool_call(tool_call: &Value, app: &mut App<'_>) {
             eprintln!("Unknown tool: {}", name);
         }
     }
-    app.messages = messages;
-    app.readable_messages = readable_messages;
+    (messages, readable_messages)
 }
 
-//#[tokio::main]
-//async fn mainnn() -> Result<(), Box<dyn std::error::Error>> {
-//    match dotenvy::from_filename("/home/istipisti113/config/variables/raa.env") {
-//        Ok(_a) => {}
-//        Err(_e) => {
-//            eprintln!(".env file could not be loaded.");
-//            return Ok(());
-//        }
-//    };
-//    dotenvy::dotenv().ok();
-//
-//    let (base_url, api_key, model) = get_config();
-//    let client = create_client::<serde_json::Value>(&base_url, &api_key);
-//
-//    let mut messages: Vec<Value> = vec![];
-//    let mut running = true;
-//
-//    while running{
-//        print!("> ");
-//        io::stdout().flush().unwrap();
-//        let mut input = String::new(); 
-//
-//        io::stdin().read_line(&mut input).expect("failed to read line");
-//        #[allow(unused_assignments)]
-//
-//    }
-//    Ok(())
-//}
+pub async fn send_message<'a>(
+    client : &Client<OpenAIConfig>,
+    messages: &mut MutexGuard<'_, Vec<Value>>,
+    model: &str
+)-> anyhow::Result<(Vec<Value>, Vec<String>)>{
+    let mut returning: (Vec<Value>, Vec<String>) = (vec![], vec![]);
+        let mut content = String::new();
+        let mut file = std::fs::File::open("out.txt").unwrap();
+        file.read_to_string(&mut content).unwrap();
+        //std::fs::File::read_to_string(&mut file, &mut content).unwrap();
+        let mut file = std::fs::File::create("out.txt").unwrap();
 
-pub async fn send_message<'a>(app: &'_ mut App<'_>) -> anyhow::Result<String>{
-    let input: String = app.input.clone();
-    //&(*app).client;
-    let client = (*app).client.as_ref().unwrap().clone();
-    if input.trim() == "exit" || input.trim()=="quit"{app.running = false; return Ok("Exited".to_owned());}
-    app.messages.push(json!({"role": "user", "content": &input.trim()}));
+        let a = (*messages).iter().map(|x|x.to_string()+"\n").collect::<Vec<String>>();
+        file.write_all(format!("{}\n", a.join("") ).as_bytes())?;
+    returning.0.append(&mut **messages);
     loop {
+
+
         let response: Value = client
             .chat()
-            .create_byot(create_byot(&app.messages, &app.model.as_ref().unwrap()))
-        .await.unwrap();
+            .create_byot(create_byot(&returning.0, model))
+        .await.unwrap_or_else(|error|{
+                eprintln!("{:?}", error);
+                panic!("|{:?}|", returning.0);
+            });
 
-        //eprintln!("Logs from your program will appear here!");
         let message = &response["choices"][0]["message"];
-        app.messages.push(serde_json::to_value(message).unwrap());
+        returning.0.push(serde_json::to_value(message).unwrap());
 
         if let Some(tool_calls) = &message["tool_calls"].as_array() {
             for tool_call in tool_calls.into_iter() {
-                handle_tool_call(&tool_call, app).await;
+                let (mut raw, mut read) = handle_tool_call(&tool_call).await;
+                returning.0.append(&mut raw);
+                returning.1.append(&mut read);
             }
         } else if let Some(content) = message["content"].as_str() {
-            //app.readable_messages.push(serde_json::to_value(content).unwrap().to_string());
-            //println!("{}", content);
-            return Ok(content.to_owned());
+            returning.1.push(serde_json::to_value(content).unwrap().to_string());
+            return Ok(returning);
         }
     }
 }

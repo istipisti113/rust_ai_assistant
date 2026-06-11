@@ -12,9 +12,14 @@ use ratatui::widgets::{Block, Paragraph, Wrap};
 use crossterm::event::{self, EnableMouseCapture, DisableMouseCapture, KeyCode};
 use crossterm::terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::execute;
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::io::Read;
+use std::time::Duration;
 use std::{io::{self, Write}, vec};
 use async_openai::{Client, config::OpenAIConfig};
+
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 
 use crate::config::send_message;
 
@@ -22,24 +27,31 @@ pub struct App<'a> {
     pub counter: Option<u32>,
     pub title: &'a str,
     pub running: bool,
-    pub messages: Vec<Value>,
+    pub messages: Arc<Mutex<Vec<Value>>>,
     pub model: Option<String>,
     pub input: String,
     pub client: Option<Client<OpenAIConfig>>,
-    pub readable_messages: Vec<String>,
+    pub readable_messages: Arc<Mutex<Vec<String>>>,
     pub reading_window_start: u16, //offset so scrolling can be implemented
+    pub token: CancellationToken,
 }
 
 impl<'a> App<'a>{
-    pub fn new(title: &'a str) -> Self{
-        App { counter: None, title, running: true, model: None, messages: vec![], 
-            input: String::new(), client: None, readable_messages: vec![], reading_window_start: 0 }
+    pub fn new(title: &'a str, token: CancellationToken) -> Self{
+        App { counter: None, title, running: true, model: None, messages: Arc::new(Mutex::new(vec![])), 
+            input: String::new(), client: None, readable_messages: Arc::new(Mutex::new(vec![])), reading_window_start: 0, token }
     }
 
     pub async fn run(&mut self, terminal: &mut DefaultTerminal, token: CancellationToken) -> io::Result<()> {
         while self.running {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events().await?;
+            terminal.draw(|frame| {
+                self.draw(frame);
+            }).unwrap();
+            //eprintln!("draw");
+            if event::poll(Duration::from_millis(100)).unwrap(){
+                self.handle_events().await?;
+                //eprintln!("handle_event");
+            }
         }
         disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
@@ -48,7 +60,7 @@ impl<'a> App<'a>{
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &'_ mut Frame<'_>) {
         //frame.render_widget(self, frame.area());
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -63,10 +75,12 @@ impl<'a> App<'a>{
             Span::styled("rust ai assistant", Style::default().fg(Color::Blue))
         ])).block(Block::default().borders(Borders::ALL));
 
-        let messages_parsed = self.readable_messages[(self.reading_window_start as usize)..]
+        let readable = tokio::task::block_in_place(|| {self.readable_messages.blocking_lock() });
+        self.reading_window_start = self.reading_window_start.min(readable.len() as u16);
+        let messages_parsed = readable[(self.reading_window_start as usize)..]
             .iter().map(|mess| {
-                Line::styled(mess, Style::default().fg(Color::Blue))
-        }).collect::<Vec<_>>();
+                Line::styled(mess, Style::default())
+        }).collect::<Vec<Line>>();
 
         let readable_messages = Paragraph::new(messages_parsed)
             .block(Block::default().borders(Borders::ALL));
@@ -79,6 +93,13 @@ impl<'a> App<'a>{
         frame.render_widget(input_field, chunks[2]);
     }
 
+    //async fn message_send(&self, readable: Vec<String>){
+    //    let reply = send_message(self).await.unwrap();
+    //    for line in reply.split("\n"){
+    //        self.readable_messages.lock().await.push(line.to_owned());
+    //    }
+    //}
+
     async fn handle_events(&mut self) -> io::Result<()>{
         if let Some(key) = event::read()?.as_key_press_event(){
             match key.code {
@@ -89,12 +110,35 @@ impl<'a> App<'a>{
                     self.input.push(character);
                 }
                 KeyCode::Enter => {
-                    self.readable_messages.push(self.input.clone());
-                    let reply = send_message(self).await.unwrap();
-                    for line in reply.split("\n"){
-                        self.readable_messages.push(line.to_owned());
-                    }
+                    let mut readable_asdfasdf = tokio::task::block_in_place(||self.readable_messages.blocking_lock());
+                    readable_asdfasdf.push(self.input.clone());
+                    let mut raw_asdfasdf = tokio::task::block_in_place(||self.messages.blocking_lock());
+                    let a =json!({"role": "user", "content": self.input.trim()});
+                    //eprintln!("{:?}", &a);
+                    raw_asdfasdf.push(a);
+                    let client = self.client.as_ref().unwrap().clone();
+
+                    let model = self.model.clone();
+                    let model = model.unwrap();
+                    let messages = Arc::clone(&self.messages);
+
+                    let readable = Arc::clone(&self.readable_messages);
                     self.input = String::new();
+
+                    tokio::task::spawn(async move {
+                        let mut messages_guard = messages.lock().await;
+                        let mut readable_guard = readable.lock().await;
+                        let (mut raw, mut readable) = send_message(
+                            &client.clone(), &mut messages_guard, &model.clone())
+                        .await.unwrap();
+                        messages_guard.append(&mut raw);
+                        for asdf in &readable{
+                            for line in asdf.split("\\n"){
+                                let a = line.to_owned();
+                                readable_guard.push(a);
+                            }
+                        }
+                    });
                 }
 
                 KeyCode::Backspace => {

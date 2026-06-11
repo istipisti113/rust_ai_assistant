@@ -24,9 +24,11 @@ async fn main() -> anyhow::Result<()>{
         }
     };
     dotenvy::dotenv().ok();
-    let mut app = App::new("raa");
     let (base_url, api_key, model) = config::get_config();
     let client = config::create_client::<serde_json::Value>(&base_url, &api_key);
+
+    let token = CancellationToken::new();
+    let mut app = App::new("raa", token.clone());
     app.model = Some(model);
     app.client = Some(client);
 
@@ -35,14 +37,6 @@ async fn main() -> anyhow::Result<()>{
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend =  CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
-    let token = CancellationToken::new();
-
-    let token_clone = token.clone();
-    tokio::task::spawn_blocking( move || -> anyhow::Result<()>{ // handling async stuff
-
-        Ok(())
-    });
 
     tokio::select! {
         _= app.run(&mut terminal, token.clone()) => {}
