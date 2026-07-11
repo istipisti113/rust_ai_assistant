@@ -34,12 +34,13 @@ pub struct App<'a> {
     pub readable_messages: Arc<Mutex<Vec<String>>>,
     pub reading_window_start: u16, //offset so scrolling can be implemented
     pub token: CancellationToken,
+    pub typing: bool,
 }
 
 impl<'a> App<'a>{
     pub fn new(title: &'a str, token: CancellationToken) -> Self{
         App { counter: None, title, running: true, model: None, messages: Arc::new(Mutex::new(vec![])), 
-            input: String::new(), client: None, readable_messages: Arc::new(Mutex::new(vec![])), reading_window_start: 0, token }
+            input: String::new(), client: None, readable_messages: Arc::new(Mutex::new(vec![])), reading_window_start: 0, token , typing: true}
     }
 
     pub async fn run(&mut self, terminal: &mut DefaultTerminal, token: CancellationToken) -> io::Result<()> {
@@ -102,57 +103,77 @@ impl<'a> App<'a>{
 
     async fn handle_events(&mut self) -> io::Result<()>{
         if let Some(key) = event::read()?.as_key_press_event(){
-            match key.code {
-                KeyCode::Esc => {
-                    self.running = false
-                }
-                KeyCode::Char(character)=> {
-                    self.input.push(character);
-                }
-                KeyCode::Enter => {
-                    let mut readable_asdfasdf = tokio::task::block_in_place(||self.readable_messages.blocking_lock());
-                    readable_asdfasdf.push(self.input.clone());
-                    let mut raw_asdfasdf = tokio::task::block_in_place(||self.messages.blocking_lock());
-                    let a =json!({"role": "user", "content": self.input.trim()});
-                    //eprintln!("{:?}", &a);
-                    raw_asdfasdf.push(a);
-                    let client = self.client.as_ref().unwrap().clone();
-
-                    let model = self.model.clone();
-                    let model = model.unwrap();
-                    let messages = Arc::clone(&self.messages);
-
-                    let readable = Arc::clone(&self.readable_messages);
-                    self.input = String::new();
-
-                    tokio::task::spawn(async move {
-                        let mut messages_guard = messages.lock().await;
-                        let mut readable_guard = readable.lock().await;
-                        let (mut raw, mut readable) = send_message(
-                            &client.clone(), &mut messages_guard, &model.clone())
-                        .await.unwrap();
-                        messages_guard.append(&mut raw);
-                        for asdf in &readable{
-                            for line in asdf.split("\\n"){
-                                let a = line.to_owned();
-                                readable_guard.push(a);
+            if !self.typing {
+                match key.code {
+                    KeyCode::Char(char) => {
+                        match char {
+                            'i'=> {
+                                self.typing = true;
                             }
+                            'q' => {
+                                self.running = false;
+                            }
+                            _ => {}
                         }
-                    });
-                }
-
-                KeyCode::Backspace => {
-                    self.input.pop();
-                }
-                KeyCode::Up => {
-                    if self.reading_window_start!=0{
-                        self.reading_window_start-=1
                     }
+                    _ =>{} // TODO: yet to be implemented
                 }
-                KeyCode::Down => {
-                    self.reading_window_start+=1
+            }
+            else {
+                match key.code {
+                    KeyCode::Esc => {
+                        self.typing = false;
+                    }
+                    KeyCode::Char(character)=> {
+                        self.input.push(character);
+                    }
+                    KeyCode::Enter => {
+                        let mut readable_asdfasdf = tokio::task::block_in_place(
+                            ||self.readable_messages.blocking_lock()
+                        );
+                        readable_asdfasdf.push(self.input.clone());
+                        let mut raw_asdfasdf = tokio::task::block_in_place(||self.messages.blocking_lock());
+                        let a =json!({"role": "user", "content": self.input.trim()});
+                        //eprintln!("{:?}", &a);
+                        raw_asdfasdf.push(a);
+                        let client = self.client.as_ref().unwrap().clone();
+
+                        let model = self.model.clone();
+                        let model = model.unwrap();
+                        let messages = Arc::clone(&self.messages);
+
+                        let readable = Arc::clone(&self.readable_messages);
+                        self.input = String::new();
+
+                        tokio::task::spawn(async move {
+                            let mut messages_guard = messages.lock().await;
+                            let mut readable_guard = readable.lock().await;
+                            let (mut raw, readable) = send_message(
+                                &client.clone(), &mut messages_guard, &model.clone())
+                                .await.unwrap();
+                            messages_guard.append(&mut raw);
+                            for asdf in &readable{
+                                for line in asdf.split("\\n"){
+                                    let a = line.to_owned();
+                                    readable_guard.push(a);
+                                }
+                            }
+                        });
+                    }
+
+                    KeyCode::Backspace => {
+                        self.input.pop();
+                    }
+                    KeyCode::Up => {
+                        if self.reading_window_start!=0{
+                            self.reading_window_start-=1
+                        }
+                    }
+                    KeyCode::Down => {
+                        self.reading_window_start+=1
+                    }
+                    _=>{}
                 }
-                _=>{}
             }
         }
         Ok(())
