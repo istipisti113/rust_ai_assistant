@@ -391,7 +391,7 @@ pub async fn send_message<'a>(
             file
         }
         Err(_e) => {
-            std::fs::File::create("open.txt").unwrap()
+            std::fs::File::create("out.txt").unwrap()
         }
     };
     file.read_to_string(&mut content).unwrap();
