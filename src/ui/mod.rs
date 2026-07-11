@@ -69,6 +69,7 @@ impl<'a> App<'a>{
                 Constraint::Length(3),
                 Constraint::Min(3),
                 Constraint::Length(6),
+                Constraint::Length(1)
             ]).split(frame.area());
 
         //let title = Line::from("hello");
@@ -89,9 +90,11 @@ impl<'a> App<'a>{
         let input_field = Paragraph::new(Line::from(vec![
             Span::from(&self.input)
         ])).block(Block::default().borders(Borders::ALL));
+        let vim_line = Paragraph::new(if self.typing {"input"} else {"normal"});
         frame.render_widget(header, chunks[0]);
         frame.render_widget(readable_messages, chunks[1]);
         frame.render_widget(input_field, chunks[2]);
+        frame.render_widget(vim_line, chunks[3]);
     }
 
     //async fn message_send(&self, readable: Vec<String>){
