@@ -386,20 +386,20 @@ pub async fn send_message<'a>(
 )-> anyhow::Result<(Vec<Value>, Vec<String>)>{
     let mut returning: (Vec<Value>, Vec<String>) = (vec![], vec![]);
     let mut content = String::new();
-    let mut file = match std::fs::File::open("out.txt"){
-        Ok(file) => {
-            file
-        }
-        Err(_e) => {
-            std::fs::File::create("out.txt").unwrap()
-        }
-    };
-    file.read_to_string(&mut content).unwrap();
-    //std::fs::File::read_to_string(&mut file, &mut content).unwrap();
-    let mut file = std::fs::File::create("out.txt").unwrap();
+    //let mut file = match std::fs::File::open("out.txt"){
+    //    Ok(file) => {
+    //        file
+    //    }
+    //    Err(_e) => {
+    //        std::fs::File::create("out.txt").unwrap()
+    //    }
+    //};
+    //file.read_to_string(&mut content).unwrap();
+    ////std::fs::File::read_to_string(&mut file, &mut content).unwrap();
+    ////let mut file = std::fs::File::create("out.txt").unwrap();
 
-    let a = (*messages).iter().map(|x|x.to_string()+"\n").collect::<Vec<String>>();
-    file.write_all(format!("{}\n", a.join("") ).as_bytes())?;
+    //let a = (*messages).iter().map(|x|x.to_string()+"\n").collect::<Vec<String>>();
+    //file.write_all(format!("{}\n", a.join("") ).as_bytes())?;
     returning.0.append(&mut **messages);
     loop {
 
