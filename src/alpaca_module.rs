@@ -4,7 +4,7 @@ use apca::api::v2::account;
 
 use anyhow;
 
-pub async fn make_order(client: &Client, symbol: &str, side: order::Side, amount: order::Amount) -> anyhow::Result<()> {
+pub async fn make_order(client: &apca::Client, symbol: &str, side: order::Side, amount: order::Amount) -> anyhow::Result<()> {
     let request = order::CreateReqInit {
         type_: order::Type::Market,
         limit_price: None, ..Default::default()
