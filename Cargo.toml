@@ -14,3 +14,6 @@ tokio = {version="1.54.1", features = ["full"]}
 async-openai = { version = "=0.32.4", features = ["byot", "chat-completion"] }
 clap = { version = "4.3.14", features = ["derive"] }                 # CLI argument parsing
 tokio-util = "0.7.18"
+serde = "1.0.229"
+chrono = "0.4.45"
+futures = "0.3.34"

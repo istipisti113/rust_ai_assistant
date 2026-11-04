@@ -1,4 +1,65 @@
+#![allow(clippy::let_unit_value)]
+
 use core::panic;
+
+use serde;
+use apca::data::v2::stream::drive;
+use apca::data::v2::stream::Bar;
+use apca::data::v2::stream::MarketData;
+use apca::data::v2::stream::Quote;
+use apca::data::v2::stream::RealtimeData;
+use apca::data::v2::stream::IEX;
+use apca::ApiInfo;
+use apca::Client as ApcaClient;
+use apca::Error;
+
+use chrono::DateTime;
+use chrono::Utc;
+
+use futures::FutureExt as _;
+use futures::StreamExt as _;
+use futures::TryStreamExt as _;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+
+/// A trade for an equity.
+///
+/// This is a user-defined type with additional fields compared to
+/// [`apca::data::v2::stream::Trade`] (the default), illustrating how to
+/// work with custom types.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Trade {
+  /// The trade's symbol.
+  #[serde(rename = "S")]
+  pub symbol: String,
+  /// The trade's ID.
+  #[serde(rename = "i")]
+  pub trade_id: u64,
+  /// The trade's price.
+  #[serde(rename = "p")]
+  pub trade_price: u32,
+  /// The trade's size.
+  #[serde(rename = "s")]
+  pub trade_size: u64,
+  /// The trade's conditions.
+  #[serde(rename = "c")]
+  pub conditions: Vec<String>,
+  /// The trade's time stamp.
+  #[serde(rename = "t")]
+  pub timestamp: DateTime<Utc>,
+  /// The trade's exchange.
+  #[serde(rename = "x")]
+  pub exchange: String,
+  /// The trade's tape.
+  #[serde(rename = "z")]
+  pub tape: String,
+  /// The trade's update, may be "canceled", "corrected", or
+  /// "incorrect".
+  #[serde(rename = "u", default)]
+  pub update: Option<String>,
+}
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -37,12 +98,13 @@ pub struct Model{
     api_key: String,
     apca_account: apca::api::v2::account::Account,
     apca_client: apca::Client,
+    memory: Arc<Mutex<Vec<Value>>>
 }
 
 impl Model {
     pub fn new(apca_client: apca::Client, apca_account: apca::api::v2::account::Account) -> Model{
         let (base_url, api_key, model) = get_config();
-        let ai_client = create_client::<serde_json::Value>(&base_url, &api_key);
+        let ai_client: Client<OpenAIConfig> = create_client::<serde_json::Value>(&base_url, &api_key);
         return Model {
             messages: Arc::new(Mutex::new(Vec::new())),
             readable_messages: Arc::new(Mutex::new(Vec::new())),
@@ -52,6 +114,7 @@ impl Model {
             model_name:model,
             apca_account: apca_account,
             apca_client:apca_client,
+            memory: Arc::new(Mutex::new(Vec::new())),
         };
     }
 
@@ -65,7 +128,7 @@ impl Model {
         messages_lock.append(&mut history);
         Ok(())
     }
-    
+
     pub async fn save_hist(&self) -> anyhow::Result<()>{
         let mut file = File::create("chat_history.json")?;
         let msg = self.messages.clone();
@@ -73,44 +136,6 @@ impl Model {
         file.write_all(serde_json::to_string(&msg_lock)?.to_string().as_bytes())?;
         Ok(())
     }
-
-    //pub async fn send(&mut self, input: String) -> anyhow::Result<(String, Vec<Value>), String> {
-    //    let input_message = json!({"role":"user", "content":input});
-    //    //let mut messages_lock = self.messages.lock().await;
-    //    let messages = Arc::clone(&self.messages);
-    //    let mut messages_lock = messages.lock().await;
-    //    let readable = Arc::clone(&self.readable_messages);
-    //    let mut readable_lock = readable.lock().await;
-    //    messages_lock.push(input_message);
-    //    readable_lock.push(input);
-
-    //    let new_raw;
-
-    //    let answer: String = match self.send_message(
-    //        &mut messages_lock,
-    //        &self.model_name
-    //    ).await {
-    //        Ok((mut raw,readable)) => {
-    //            messages_lock.append(&mut raw);
-    //            let mut ans_parts = Vec::new();
-
-    //            for asdf in &readable{
-    //                for line in asdf.split("\\n"){
-    //                    let a = line.to_owned();
-    //                    readable_lock.push(a.clone());
-    //                    ans_parts.push(a);
-    //                }
-    //            }
-    //            new_raw = raw;
-    //            ans_parts.concat()
-
-    //        }
-    //        Err(_error) => {
-    //            return Err(String::from("error"));
-    //        }
-    //    };
-    //    Ok((answer, new_raw))
-    //}
 
     async fn handle_tool_call(&self, tool_call: &Value) -> (Vec<Value>, Vec<String>){
         let name = tool_call["function"]["name"].as_str().unwrap();
@@ -252,6 +277,44 @@ impl Model {
                         readable_messages.push(format!("FAILED order: symbol: {}, side: {}, amount: {}", symbol, side, amount));
                     }
                 }
+            }
+
+            "get_market_data" => {
+                let (mut stream, mut subscription) = self.apca_client
+                    .subscribe::<RealtimeData<IEX, Bar, Quote, Trade>>()
+                    .await
+                    .unwrap();
+
+                let mut data = MarketData::default();
+                // Subscribe to minute aggregate bars for SPY and XLK...
+                data.set_bars(["SPY", "XLK"]);
+                // ... and realtime quotes for AAPL...
+                data.set_quotes(["AAPL"]);
+                // ... and realtime trades for TSLA.
+                data.set_trades(["TSLA"]);
+
+                let subscribe = subscription.subscribe(&data).boxed();
+                // Actually subscribe with the websocket server.
+                let () = drive(subscribe, &mut stream)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap();
+
+                let data = stream
+                    // Stop after receiving and printing 50 updates.
+                    .take(50)
+                    .map_err(Error::WebSocket)
+                    .try_for_each(|result| async { result.map(|data| println!("{data:?}")).map_err(Error::Json) })
+                    .await
+                    .unwrap();
+
+                println!("{:?}", data);
+
+                let mem = Arc::clone(&self.memory);
+                let mem_lock = mem.lock().await;
+
+                
             }
 
             _ => {
