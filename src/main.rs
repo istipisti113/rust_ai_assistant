@@ -26,7 +26,7 @@ async fn main() {
 
     //alpaca_module::make_order(&client, "AAPL", order::Side::Buy, order::Amount::quantity(1)).await.unwrap();
 
-    let mut model = ai_module::Model::new(client, account);
+    let mut model = ai_module::Model::new_with_apca(client, account);
     match model.load_hist().await {
         Ok(_)=>{}
         Err(e) => {println!("history was not loaded: {}", e)}

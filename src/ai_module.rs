@@ -96,13 +96,13 @@ pub struct Model{
     base_url: String,
     model_name: String,
     api_key: String,
-    apca_account: apca::api::v2::account::Account,
-    apca_client: apca::Client,
+    apca_account: Option<apca::api::v2::account::Account>,
+    apca_client: Option<apca::Client>,
     memory: Arc<Mutex<Vec<Value>>>
 }
 
 impl Model {
-    pub fn new(apca_client: apca::Client, apca_account: apca::api::v2::account::Account) -> Model{
+    pub fn new() -> Model {
         let (base_url, api_key, model) = get_config();
         let ai_client: Client<OpenAIConfig> = create_client::<serde_json::Value>(&base_url, &api_key);
         return Model {
@@ -112,8 +112,25 @@ impl Model {
             api_key: api_key,
             base_url: base_url,
             model_name:model,
-            apca_account: apca_account,
-            apca_client:apca_client,
+            apca_account: None,
+            apca_client:None,
+            memory: Arc::new(Mutex::new(Vec::new())),
+        };
+
+    }
+
+    pub fn new_with_apca(apca_client: apca::Client, apca_account: apca::api::v2::account::Account) -> Model{
+        let (base_url, api_key, model) = get_config();
+        let ai_client: Client<OpenAIConfig> = create_client::<serde_json::Value>(&base_url, &api_key);
+        return Model {
+            messages: Arc::new(Mutex::new(Vec::new())),
+            readable_messages: Arc::new(Mutex::new(Vec::new())),
+            client: ai_client,
+            api_key: api_key,
+            base_url: base_url,
+            model_name:model,
+            apca_account: Some(apca_account),
+            apca_client: Some(apca_client),
             memory: Arc::new(Mutex::new(Vec::new())),
         };
     }
@@ -261,7 +278,7 @@ impl Model {
                 let side : bool = args["side"].as_bool().unwrap();
                 let amount: u64 = args["amount"].as_u64().unwrap();
                 match alpaca_module::make_order(
-                    &self.apca_client, symbol,
+                    &self.apca_client.as_ref().unwrap(), symbol,
                     if side {order::Side::Buy} else {order::Side::Sell},
                     order::Amount::quantity(amount)
                 ).await {
@@ -280,7 +297,7 @@ impl Model {
             }
 
             "get_market_data" => {
-                let (mut stream, mut subscription) = self.apca_client
+                let (mut stream, mut subscription) = self.apca_client.as_ref().unwrap()
                     .subscribe::<RealtimeData<IEX, Bar, Quote, Trade>>()
                     .await
                     .unwrap();
