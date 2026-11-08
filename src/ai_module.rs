@@ -3,32 +3,27 @@
 use core::panic;
 
 use serde;
-use apca::data::v2::stream::drive;
-use apca::data::v2::stream::Bar;
-use apca::data::v2::stream::MarketData;
-use apca::data::v2::stream::Quote;
-use apca::data::v2::stream::RealtimeData;
-use apca::data::v2::stream::IEX;
-use apca::ApiInfo;
-use apca::Client as ApcaClient;
-use apca::Error;
+//use apca::data::v2::stream::drive;
+//use apca::data::v2::stream::Bar;
+//use apca::data::v2::stream::MarketData;
+//use apca::data::v2::stream::Quote;
+//use apca::data::v2::stream::RealtimeData;
+//use apca::data::v2::stream::IEX;
+use apca::api::v2::{calendar};
+//use apca::Error;
+use apca::data::v2::bars::{ListReq, TimeFrame};
 
-use chrono::DateTime;
-use chrono::Utc;
-
-use futures::FutureExt as _;
-use futures::StreamExt as _;
-use futures::TryStreamExt as _;
+use chrono::{DateTime, NaiveDate, Duration, Utc};
 
 use serde::Deserialize;
 use serde::Serialize;
-
 
 /// A trade for an equity.
 ///
 /// This is a user-defined type with additional fields compared to
 /// [`apca::data::v2::stream::Trade`] (the default), illustrating how to
 /// work with custom types.
+#[allow(unused)]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Trade {
   /// The trade's symbol.
@@ -65,7 +60,6 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
-use tokio::sync::MutexGuard;
 use tokio::sync::Mutex;
 //use anyhow::Ok;
 use serde_json::{Value, json};
@@ -84,12 +78,18 @@ use std::{env, fs};
 use crate::alpaca_module;
 use apca::api::v2::order;
 
+pub enum Role {
+    User,
+    System
+}
+
 pub struct ModelOption {
     pub base_url: String,
     pub price: Option<String>,
 }
 
-pub struct Model{
+#[allow(unused)]
+pub struct Model<'a>{
     messages: Arc<Mutex<Vec<Value>>>,
     readable_messages: Arc<Mutex<Vec<String>>>,
     client: Client<OpenAIConfig>,
@@ -97,12 +97,12 @@ pub struct Model{
     model_name: String,
     api_key: String,
     apca_account: Option<apca::api::v2::account::Account>,
-    apca_client: Option<apca::Client>,
+    apca_client: Option<&'a apca::Client>,
     memory: Arc<Mutex<Vec<Value>>>
 }
 
-impl Model {
-    pub fn new() -> Model {
+impl<'a> Model<'a> {
+    pub fn _new() -> Model<'a> {
         let (base_url, api_key, model) = get_config();
         let ai_client: Client<OpenAIConfig> = create_client::<serde_json::Value>(&base_url, &api_key);
         return Model {
@@ -116,10 +116,9 @@ impl Model {
             apca_client:None,
             memory: Arc::new(Mutex::new(Vec::new())),
         };
-
     }
 
-    pub fn new_with_apca(apca_client: apca::Client, apca_account: apca::api::v2::account::Account) -> Model{
+    pub fn new_with_apca(apca_client: &'a apca::Client, apca_account: apca::api::v2::account::Account) -> Model<'a>{
         let (base_url, api_key, model) = get_config();
         let ai_client: Client<OpenAIConfig> = create_client::<serde_json::Value>(&base_url, &api_key);
         return Model {
@@ -146,11 +145,22 @@ impl Model {
         Ok(())
     }
 
+    pub async fn debug_hist(&self) -> anyhow::Result<()> {
+        let hist = Arc::clone(&self.messages);
+        let hist_lock : Vec<String> = hist.lock().await.to_vec().into_iter().map(|m|m.to_string()).collect();
+        println!("{}",hist_lock.join("\n"));
+        Ok(())
+    }
+
     pub async fn save_hist(&self) -> anyhow::Result<()>{
         let mut file = File::create("chat_history.json")?;
         let msg = self.messages.clone();
         let msg_lock: Vec<serde_json::Value> = msg.lock().await.to_vec();
-        file.write_all(serde_json::to_string(&msg_lock)?.to_string().as_bytes())?;
+        file.write_all(serde_json::to_string(&msg_lock.into_iter().filter_map(|m|{
+            if m["role"].as_str().unwrap() != "system"{
+                Some(m)
+            } else {None}
+        }).collect::<Vec<Value>>())?.to_string().as_bytes())?;
         Ok(())
     }
 
@@ -163,7 +173,7 @@ impl Model {
         match name {
             "Read" => {
                 let file_path = args["file_path"].as_str().unwrap();
-                //println!(">>>> file read: {}", file_path);
+                println!(">>>> file read: {}", file_path);
                 readable_messages.push(format!(">>>> file read: {}", file_path));
                 if !is_file_allowed(file_path.to_string()){
                     messages.push(json!({
@@ -193,7 +203,7 @@ impl Model {
             "Write" => {
                 let file_path = args["file_path"].as_str().unwrap();
                 let cont = args["content"].as_str().unwrap();
-                //println!(">>>> write tool used: {}, {}", file_path, cont);
+                println!(">>>> write tool used: {}, {}", file_path, cont);
                 readable_messages.push(format!(">>>> write tool used: {}, {}", file_path, cont));
 
                 if !is_file_allowed(file_path.to_string()){
@@ -215,14 +225,15 @@ impl Model {
 
             "Bash" => {
                 let cmd = args["command"].as_str().unwrap();
-                //println!(">>>> shell command ran: {}", cmd);
-                readable_messages.push(format!(">>>> shell command ran: {}", cmd));
+                println!(">>>> shell command ran: {}", cmd);
+                //readable_messages.push(format!(">>>> shell command ran: {}", cmd));
                 if !ALLOWED_CMD.contains(&cmd.split(" ").nth(0).unwrap()) || cmd.contains("..") {
                     //eprintln!("{} is not an allowed command", cmd);
                     messages.push(json!({
                         "role": "tool", "tool_call_id": tool_call["id"], "content": format!("{} is not an allowed command", cmd)
                     }));
-                    readable_messages.push(format!("{} is not an allowed command", cmd));
+                    //readable_messages.push(format!("{} is not an allowed command", cmd));
+                    println!("!!!! {} is not an allowed command", cmd);
                     return (messages, readable_messages);
                 }
                 let output = Command::new("bash").arg("-c").arg(cmd).output();
@@ -230,21 +241,21 @@ impl Model {
                     Ok(out) => {
                         let content = String::from_utf8_lossy(&out.stdout).to_string();
                         messages.push(json!({
-                            "role": "tool", "tool_call_id": tool_call["id"], "content": content
+                            "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(), "content": content
                         }));
                     }
 
-                    Err(_error) => {
+                    Err(error) => {
                         messages.push(json!({
-                            "role": "tool", "tool_call_id": tool_call["id"], "content": "content: ".to_owned() + &format!("{}", &output.unwrap_err())
-                    }));
+                            "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(), "content": format!("error: {}", error)
+                        }));
                     }
                 }
             }
 
             "Web" => {
                 let phrase = args["phrase"].as_str().unwrap();
-                //println!("searching for: {}", phrase);
+                println!(">>>> searching for: {}", phrase);
                 readable_messages.push(format!("searching for: {}", phrase));
                 let query = json!({
                     "query": phrase,
@@ -277,11 +288,21 @@ impl Model {
                 let symbol = args["symbol"].as_str().unwrap();
                 let side : bool = args["side"].as_bool().unwrap();
                 let amount: u64 = args["amount"].as_u64().unwrap();
+                let limit_price = args["limit_price"].as_u64();
+                let stop_price = args["stop_price"].as_u64();
+                let trail_price = args["trail_price"].as_u64();
+                let trail_percent = args["trail_percent"].as_u64();
+                let order_type = args["order_type"].as_str().unwrap().to_string();
+
+                println!(">>>> order tool called, {}, {}, {}", symbol, side, amount);
                 match alpaca_module::make_order(
-                    &self.apca_client.as_ref().unwrap(), symbol,
+                    &self.apca_client.as_ref().unwrap(),
+                    symbol,
                     if side {order::Side::Buy} else {order::Side::Sell},
-                    order::Amount::quantity(amount)
+                    order::Amount::quantity(amount), limit_price, 
+                    stop_price, trail_price, trail_percent, order_type
                 ).await {
+
                     Ok(_) =>{
                         messages.push(json!({ "role": "tool", "tool_call_id": tool_call["id"], "content": 
                             format!("order placed: {}, {}, {}", symbol, if side {"buy"} else {"sell"}, amount)
@@ -296,42 +317,109 @@ impl Model {
                 }
             }
 
+            "get_market_open_hours" => {
+                println!(">>>> fetching market open hours");
+                let start = NaiveDate::parse_from_str(args["start"].as_str().unwrap(), "%Y-%m-%d").unwrap();
+                let end = NaiveDate::parse_from_str(args["end"].as_str().unwrap(), "%Y-%m-%d").unwrap();
+
+                let request = calendar::ListReq {start,end, _non_exhaustive:()};
+                let response:Vec<serde_json::Value>  = self.apca_client.unwrap()
+                    .issue::<calendar::List>(&request).await.unwrap().into_iter().map(|day|{
+                        json!({
+                            "day": day.date,
+                            "open": day.open,
+                            "close": day.close
+                        })
+                    }).collect();
+
+                messages.push(json!({ 
+                    "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(),
+                    "content": serde_json::to_string(&response).unwrap() 
+                }));
+                //readable_messages.push(">>>> market open hours fetched\n".to_string());
+            }
+
             "get_market_data" => {
-                let (mut stream, mut subscription) = self.apca_client.as_ref().unwrap()
-                    .subscribe::<RealtimeData<IEX, Bar, Quote, Trade>>()
-                    .await
-                    .unwrap();
+                let symbol = args["symbol"].as_str().unwrap();
+                let timeframe = match args["timeframe"].as_str().unwrap() {
+                    "Minute" => TimeFrame::OneMinute,
+                    "Hour" =>  TimeFrame::OneHour,
+                    "Day" => TimeFrame::OneDay,
+                    _ => TimeFrame::OneMinute
+                };
+                //readable_messages.push(format!(">>>> market data requested for {}", symbol));
+                println!(">>>> market data tool called for {}", symbol);
+                //let end = Utc.with_ymd_and_hms(2026, 11, 6, 21, 0, 0).unwrap();
+                let end = match args["end"].as_str() {
+                    Some(s) => DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc),
+                    None => Utc::now()
+                };
 
-                let mut data = MarketData::default();
-                // Subscribe to minute aggregate bars for SPY and XLK...
-                data.set_bars(["SPY", "XLK"]);
-                // ... and realtime quotes for AAPL...
-                data.set_quotes(["AAPL"]);
-                // ... and realtime trades for TSLA.
-                data.set_trades(["TSLA"]);
+                let start = match args["start"].as_str() {
+                    Some(s) => DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc),
+                    None => end - Duration::minutes(15)
+                };
 
-                let subscribe = subscription.subscribe(&data).boxed();
-                // Actually subscribe with the websocket server.
-                let () = drive(subscribe, &mut stream)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .unwrap();
+                let request = ListReq {
+                    symbol: symbol.to_string(),
+                    start: start,
+                    end: end,
+                    limit: Some(15),
+                    timeframe: timeframe,
+                    adjustment: None,
+                    feed: Some(apca::data::v2::Feed::IEX),
+                    page_token: None,
+                    _non_exhaustive: ()
+                };
 
-                let data = stream
-                    // Stop after receiving and printing 50 updates.
-                    .take(50)
-                    .map_err(Error::WebSocket)
-                    .try_for_each(|result| async { result.map(|data| println!("{data:?}")).map_err(Error::Json) })
-                    .await
-                    .unwrap();
+                //let mut data: Vec<Value> = vec![];
+                let data : Vec<serde_json::Value> = match self.apca_client {
+                    Some(c) => {
+                        let bars = c.issue::<apca::data::v2::bars::List>(&request).await.unwrap();
+                        //println!("bars: {:?}", bars.bars);
+                        bars.bars.into_iter().map(|bar|{
+                            json!({
+                                "time": bar.time,
+                                "open": bar.open,
+                                "close": bar.close,
+                                "high": bar.high,
+                                "low": bar.low,
+                                "volume": bar.volume,
+                                "weighted_average": bar.weighted_average,
+                            })
+                        }).collect::<Vec<Value>>()
+                    }
+                    None => {
+                        println!("model was created without apca");
+                        vec![json!({"error":"model cant access apca client"})]
+                    }
+                };
 
-                println!("{:?}", data);
+                let data_string = serde_json::to_string(&data).unwrap();
+                messages.push(json!(
+                    { "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(), "content": data_string }));
+                readable_messages.push(format!("market data fetched for symbol: {}\n\n", symbol));
+            }
 
-                let mem = Arc::clone(&self.memory);
-                let mem_lock = mem.lock().await;
+            "python" => {
+                let source_code : String = args["code"].as_str().unwrap().to_string();
+                let output = Command::new("python").arg("-c").arg(&source_code).output();
+                println!(">>>> python");
+                match &output {
+                    Ok(out) => {
+                        let content = String::from_utf8_lossy(&out.stdout).to_string();
+                        messages.push(json!({
+                            "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(), "content": content
+                        }));
+                    }
 
-                
+                    Err(error) => {
+                        messages.push(json!({
+                            "role": "tool", "tool_call_id": tool_call["id"].as_str().unwrap(), "content": format!("error: {}", error)
+                        }));
+                    }
+                }
+
             }
 
             _ => {
@@ -341,34 +429,51 @@ impl Model {
         (messages, readable_messages)
     }
 
-    pub async fn send_message<'a>(
+    pub async fn send_message<'b>(
         &self,
         message: String,
         //messagess: &mut MutexGuard<'_, Vec<Value>>,
+        role: Role,
     )-> anyhow::Result<(Vec<Value>, Vec<String>)>{
         let mut returning: (Vec<Value>, Vec<String>) = (vec![], vec![]);
 
         let messages = Arc::clone(&self.messages);
-        let mut messages_lock: Vec<Value> = messages.lock().await.to_vec();
+        let mut messages_lock = messages.lock().await;
         let readable = Arc::clone(&self.readable_messages);
-        let mut readable_lock: Vec<String> = readable.lock().await.to_vec();
+        let mut readable_lock= readable.lock().await;
 
-        let input_message = json!({"role":"user", "content":message.clone()});
-        //returning.0.push(input_message);
-        messages_lock.push(input_message);
-        //returning.1.push(message);
+        let input_message = json!({"role": match role {
+            Role::User => "user",
+            Role::System => "system"
+        }, "content": &message});
+        returning.0.append(&mut messages_lock);
+        returning.0.push(input_message.clone());
+        //messages_lock.push(input_message);
+        //returning.1.push(message.clone());
+        //readable_lock.push(message);
 
         loop {
             let response: Value = self.client
                 .chat()
-                .create_byot(create_byot(&messages_lock, &self.model_name))
+                .create_byot(create_byot(&returning.0, &self.model_name))
                 .await.unwrap_or_else(|error|{
-                    eprintln!("{:?}", error);
+                    match error {
+                        async_openai::error::OpenAIError::JSONDeserialize(_,ref message) => {
+                            let message = &serde_json::from_str::<Value>(&message).unwrap()["error"]["message"].to_string();
+                            if message == "Rate limit exceeded: free-models-per-min. " {
+                                println!("Rate limit exceeded")
+                            } else {
+                                eprintln!("message: {}, error: {}", message, error);
+                            }
+                        }
+                        _ => {
+                            eprintln!("{:?}", error);
+                        }
+                    }
                     panic!("|{:?}|", messages_lock);
                 });
 
-            let message = &response["choices"][0]["message"];
-            returning.0.push(serde_json::to_value(message).unwrap());
+            let message = response["choices"][0]["message"].clone();
 
             if let Some(tool_calls) = &message["tool_calls"].as_array() {
                 for tool_call in tool_calls.into_iter() {
@@ -377,14 +482,18 @@ impl Model {
                     returning.1.append(&mut read);
                 }
             } else if let Some(content) = message["content"].as_str() {
-                returning.1.push(serde_json::to_value(content).unwrap().to_string());
+                returning.1.push(content.to_string());
+                returning.0.push(json!({
+                    "role": "assistant",
+                    "content": content
+                }));
                 break ;
             }
         }
 
         //let mut ans_parts = Vec::new();
-        for asdf in &returning.1{
-            for line in asdf.split("\\n"){
+        for chunk in &returning.1{
+            for line in chunk.split('\n'){
                 let a = line.to_owned();
                 readable_lock.push(a.clone());
                 //ans_parts.push(a);
@@ -392,7 +501,7 @@ impl Model {
         }
         //ans_parts.concat();
 
-        messages_lock.append(&mut returning.0.clone());
+        messages_lock.append(&mut returning.0);
         return Ok(returning);
     }
 }
@@ -617,6 +726,7 @@ pub fn create_byot(messages: &Vec<Value>, model: &str) -> Value{
                     }
                 }
             },
+
             {
                 "type": "function",
                 "function": {
@@ -624,6 +734,7 @@ pub fn create_byot(messages: &Vec<Value>, model: &str) -> Value{
                     "description": "make order of the given symbol. use when the user wants to buy or sell stocks",
                     "parameters": {
                         "type": "object",
+                        "required": ["symbol", "side", "amount", "order_type"],
                         "properties": {
                             "symbol": {
                                 "type": "string",
@@ -636,12 +747,94 @@ pub fn create_byot(messages: &Vec<Value>, model: &str) -> Value{
                             "amount": {
                                 "type": "number",
                                 "description": "amount of the symbol subject to the order. it is the amount of stock not amount of money"
+                            },
+                            "order_type": {
+                                "type": "string",
+                                "description":"it is always one of [market, limit, stop, stop_limit, trailing_stop]. inputs should be based on the description in order_types.md",
+                            },
+                            "limit_price": {
+                                "type": "number",
+                                "description": "it is used for limit and stop_limit orders. see order_types.md"
+                            },
+                            "stop_price": {
+                                "type": "number",
+                                "description": "it is used for stop and stop_limit orders. see order_types.md"
+                            },
+                            "trail_price": {
+                                "type": "number",
+                                "description": "used for trailing_stop orders. see order_types.md"
+                            },
+                            "trail_percent": {
+                                "type": "number",
+                                "description": "used for trailing_stop orders. see order_types.md"
                             }
-                        },
-                        "required": ["symbol", "side", "amount"]
+                        }
                     }
                 }
-            }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_market_data",
+                    "description": "get the market data of some symbol. before you use this tool, get the time and date first.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "symbol": { "type": "string", "description": "the symbol of the stock to make order" },
+                            "start":    { "type": "string", "format": "date-time",
+                                "description": "RFC 3339 UTC start time, e.g. 2026-11-06T20:45:00Z" },
+                            "end":      { "type": "string", "format": "date-time",
+                                "description": "RFC 3339 UTC end time. Omit for now." },
+                            "timeframe": { "type": "string", "format": "string",
+                                        "description": "timeframe for the candles, it is either Minute, Hour, Day"}
+                        },
+                        "required": ["symbol"]
+                    }
+                }
+            },
+            
+
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_market_open_hours",
+                    "description": "get the open hours of the market. When the tool's return is empty, the market is closed",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "starting day, formatted: YYYY-MM-DD"
+                            },
+                            "end": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "starting day, formatted: YYYY-MM-DD"
+                            }
+                        },
+                        "required": ["start", "end"]
+                    }
+                }
+            },
+
+            {
+                "type": "function",
+                "function": {
+                    "name": "python",
+                    "description": "run python scripts",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "python source code to be ran"
+                            },
+                        },
+                        "required": ["code"]
+                    }
+                }
+            },
         ]
     })
 }
@@ -656,8 +849,8 @@ struct Args {
 static ALLOWED_CMD: [&str; 4]= [
     "ls",
     "pwd",
-    "cargo check",
-    "cargo check 2>&1",
+    "cargo",
+    "date",
 ];
 
 pub fn create_client<T>(base_url: &str, api_key: &str) -> Client<OpenAIConfig> {

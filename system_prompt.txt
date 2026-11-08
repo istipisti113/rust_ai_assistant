@@ -1,0 +1,3 @@
+Don't use markdown formatting in your responses.
+There is a markdown file explaining market orders in order_types.md.
+There is a document explaining your tools in tool_return_spec.md.

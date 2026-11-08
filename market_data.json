@@ -1,0 +1,360 @@
+{
+  "metadata": {
+    "generated_at": "2026-11-08T10:47:41.076169Z",
+    "historical_data_range": {
+      "start": "2026-01-16",
+      "end": "2026-04-16"
+    },
+    "timeframe": "Daily",
+    "symbols": [
+      "MSFT",
+      "TSLA",
+      "AAPL",
+      "NVDA"
+    ],
+    "data_sources": [
+      "Market price data via get_market_data",
+      "Earnings reports Q1-Q2 2026",
+      "Analyst ratings and news via web search"
+    ]
+  },
+  "stocks": [
+    {
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "historical_price_data": {
+        "first_close": 186.12,
+        "last_close": 198.26,
+        "period_high": 198.85,
+        "period_low": 165.18,
+        "change_dollars": 12.14,
+        "change_percent": 6.52,
+        "max_drawdown_percent": -16.93,
+        "price_range_percent": 20.38,
+        "normalized_performance_base_100": 106.52
+      },
+      "post_earnings_context": {
+        "current_price_reference": 313.96,
+        "note": "Price reference from news post-Q2 earnings; historical data ends Apr 16, 2026"
+      },
+      "earnings": {
+        "quarter": "Q2 FY2026",
+        "report_date": "2026-04-30",
+        "revenue_billions": 111.18,
+        "revenue_growth_yoy_percent": 17.0,
+        "revenue_beat_percent": 1.46,
+        "eps": 2.01,
+        "eps_estimate": 1.95,
+        "eps_beat_percent": 3.59,
+        "iphone_revenue_billions": 56.99,
+        "iphone_growth_yoy_percent": 22.0,
+        "services_revenue_billions": 30.98,
+        "services_growth_yoy_percent": 16.0,
+        "gross_margin_percent": 49.3,
+        "guidance_q3_revenue_growth_yoy_percent": "14-17",
+        "guidance_vs_consensus": "above",
+        "capital_return": {
+          "dividend_per_share": 0.27,
+          "dividend_increase_percent": 4.0,
+          "new_buyback_authorization_billions": 100.0
+        }
+      },
+      "analyst_sentiment": {
+        "bullish_percent": 78,
+        "bearish_percent": 22,
+        "rating_bias": "Overweight / Buy",
+        "recent_targets": [
+          {
+            "firm": "Morgan Stanley",
+            "target": 360,
+            "rating": "Overweight"
+          },
+          {
+            "firm": "Wedbush",
+            "target": 400,
+            "rating": "Outperform"
+          },
+          {
+            "firm": "JP Morgan",
+            "target": 325,
+            "rating": "Overweight"
+          }
+        ]
+      },
+      "key_catalysts": [
+        "iPhone 17 extraordinary demand",
+        "Services all-time record revenue",
+        "Raised Q3 guidance well above consensus",
+        "WWDC 2026 AI/Siri catalyst expected",
+        "CEO transition to John Ternus on Sep 1, 2026",
+        "$100B buyback and 4% dividend hike"
+      ],
+      "key_risks": [
+        "Supply constraints on advanced-node SoCs and Mac models",
+        "CEO transition uncertainty",
+        "Geopolitical / tariff assumptions in guidance"
+      ],
+      "one_month_prediction": {
+        "base_case": "$205 - $215",
+        "bullish_case": "$220+",
+        "bearish_case": "$190 - $195",
+        "bias": "Positive"
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "company_name": "Microsoft Corp.",
+      "historical_price_data": {
+        "first_close": 459.76,
+        "last_close": 420.12,
+        "period_high": 481.64,
+        "period_low": 356.86,
+        "change_dollars": -39.64,
+        "change_percent": -8.62,
+        "max_drawdown_percent": -25.91,
+        "price_range_percent": 34.97,
+        "normalized_performance_base_100": 91.38
+      },
+      "earnings": {
+        "quarter": "Q3 FY2026",
+        "report_date": "2026-04-29",
+        "revenue_billions": 82.89,
+        "revenue_growth_yoy_percent": 18.0,
+        "revenue_beat_percent": 1.84,
+        "eps_adjusted": 4.27,
+        "eps_estimate": 4.06,
+        "eps_beat_percent": 5.17,
+        "cloud_revenue_billions": 54.5,
+        "cloud_growth_yoy_percent": 29.0,
+        "azure_growth_yoy_percent": 40.0,
+        "ai_business_arr_billions": 37.0,
+        "ai_business_growth_yoy_percent": 123.0,
+        "guidance_q4_revenue_billions": "86.7-87.8",
+        "guidance_vs_consensus": "slightly below midpoint",
+        "guidance_azure_q4_growth": "39-40%",
+        "capex_calendar_2026_billions": 190.0,
+        "capex_vs_consensus_billions": 154.6,
+        "capex_surprise_percent": 22.9
+      },
+      "analyst_sentiment": {
+        "bullish_percent": 62,
+        "bearish_percent": 38,
+        "rating_bias": "Overweight / Buy",
+        "recent_targets": [
+          {
+            "firm": "JP Morgan",
+            "view": "Magnificent 7 look cheap after reset",
+            "rating": "Positive"
+          }
+        ]
+      },
+      "key_catalysts": [
+        "Azure 40% growth above consensus",
+        "AI business ARR hit $37B, up 123% YoY",
+        "Microsoft Cloud revenue up 29%",
+        "JPMorgan sees valuation reset as opportunity"
+      ],
+      "key_risks": [
+        "Capex explosion to $190B in 2026, well above consensus",
+        "Gross margin narrowing to 67.6%, lowest since 2022",
+        "Q4 revenue guidance midpoint below consensus",
+        "Operating margin expected to tick down to 44%",
+        "Supply/capacity constraints through 2026"
+      ],
+      "one_month_prediction": {
+        "base_case": "$410 - $430",
+        "bullish_case": "$440 - $450",
+        "bearish_case": "$390 - $400",
+        "bias": "Cautious / Mixed"
+      }
+    },
+    {
+      "symbol": "TSLA",
+      "company_name": "Tesla Inc.",
+      "historical_price_data": {
+        "first_close": 255.475,
+        "last_close": 263.325,
+        "period_high": 278.11,
+        "period_low": 246.72,
+        "change_dollars": 7.85,
+        "change_percent": 3.07,
+        "max_drawdown_percent": -11.29,
+        "price_range_percent": 12.72,
+        "normalized_performance_base_100": 103.07
+      },
+      "earnings": {
+        "quarter": "Q1 2026",
+        "report_date": "2026-04-22",
+        "revenue_billions": 22.39,
+        "revenue_growth_yoy_percent": 15.78,
+        "revenue_vs_consensus": "slight miss",
+        "eps_adjusted": 0.41,
+        "eps_estimate": 0.37,
+        "eps_beat_percent": 13.04,
+        "auto_revenue_billions": 16.23,
+        "auto_revenue_growth_yoy_percent": 16.2,
+        "deliveries": 358023,
+        "deliveries_growth_yoy_percent": 6.0,
+        "auto_gross_margin_ex_credits_percent": 19.2,
+        "free_cash_flow_billions": 1.44,
+        "capex_2026_billions": 25.0,
+        "capex_prior_guidance_billions": 20.0,
+        "capex_increase_percent": 25.0
+      },
+      "analyst_sentiment": {
+        "bullish_percent": 55,
+        "bearish_percent": 45,
+        "rating_bias": "Neutral / Mixed turning more constructive",
+        "recent_targets": [
+          {
+            "firm": "JP Morgan",
+            "target": 475,
+            "rating": "Neutral",
+            "note": "Upgraded from Underweight on physical AI thesis"
+          },
+          {
+            "firm": "Wolfe",
+            "target": null,
+            "rating": "Peer Perform",
+            "note": "Favorable earnings setup"
+          }
+        ]
+      },
+      "key_catalysts": [
+        "EPS beat; auto gross margin ex-credits best in over a year",
+        "Cybercab and Tesla Semi volume production expected in 2026",
+        "Optimus/physical AI narrative gaining traction",
+        "JPMorgan upgrade from bearish to neutral with $475 target",
+        "European vehicle sales up 67% YoY in April"
+      ],
+      "key_risks": [
+        "Revenue missed consensus",
+        "Capex surging to >$25B (3x 2025) for AI/robots/chips",
+        "Core auto business still faces competitive pressure",
+        "Free cash flow expected negative through 2026",
+        "Valuation depends on long-term narratives not yet in earnings"
+      ],
+      "one_month_prediction": {
+        "base_case": "$255 - $275",
+        "bullish_case": "$290 - $300",
+        "bearish_case": "$240 - $250",
+        "bias": "Neutral / Slightly Positive"
+      }
+    },
+    {
+      "symbol": "NVDA",
+      "company_name": "NVIDIA Corp.",
+      "historical_price_data": {
+        "first_close": 437.53,
+        "last_close": 388.77,
+        "period_high": 449.33,
+        "period_low": 343.41,
+        "change_dollars": -48.76,
+        "change_percent": -11.14,
+        "max_drawdown_percent": -23.57,
+        "price_range_percent": 30.84,
+        "normalized_performance_base_100": 88.86
+      },
+      "earnings": {
+        "quarter": "Q1 FY2027",
+        "report_date": "2026-05-20",
+        "revenue_billions": 81.62,
+        "revenue_growth_yoy_percent": 85.0,
+        "revenue_beat_percent": 3.63,
+        "eps_adjusted": 1.87,
+        "eps_estimate": 1.76,
+        "eps_beat_percent": 5.65,
+        "data_center_revenue_billions": 75.2,
+        "data_center_growth_yoy_percent": 92.0,
+        "gross_margin_non_gaap_percent": 75.0,
+        "guidance_q2_revenue_billions": "~91.0",
+        "guidance_q2_revenue_consensus_billions": 86.84,
+        "guidance_vs_consensus": "well above",
+        "china_assumption_in_guide": "none",
+        "capital_return": {
+          "new_buyback_authorization_billions": 80.0,
+          "quarterly_dividend": 0.25,
+          "prior_quarterly_dividend": 0.01
+        }
+      },
+      "analyst_sentiment": {
+        "bullish_percent": 88,
+        "bearish_percent": 12,
+        "rating_bias": "Strong Buy / Overweight",
+        "recent_targets": [
+          {
+            "firm": "JPMorgan",
+            "view": "Overweight; SK Hynix partnership extends demand visibility",
+            "rating": "Overweight"
+          },
+          {
+            "firm": "Consensus",
+            "average_target": 323.37,
+            "rating": "Strong Buy",
+            "note": "Implies ~42% upside from reference levels"
+          }
+        ]
+      },
+      "key_catalysts": [
+        "Record revenue up 85% YoY and 20% QoQ",
+        "Data Center revenue up 92% YoY",
+        "Q2 guidance ~$91B well above consensus",
+        "CEO Huang: 'Demand has gone parabolic' due to Agentic AI",
+        "Vera CPU opens potential $200B CPU market; $20B expected this year",
+        "$80B buyback and dividend raised from $0.01 to $0.25",
+        "Blackwell fastest product ramp in company history"
+      ],
+      "key_risks": [
+        "Supply constrained through entire Vera Rubin lifecycle",
+        "No Data Center revenue from China assumed in outlook",
+        "Very high expectations; any miss could be punished",
+        "Energy/data center buildout bottlenecks for customers"
+      ],
+      "one_month_prediction": {
+        "base_case": "$400 - $420",
+        "bullish_case": "$430 - $450",
+        "bearish_case": "$360 - $380",
+        "bias": "Strongly Positive"
+      }
+    }
+  ],
+  "aggregate_sentiment": {
+    "AAPL": {
+      "bullish": 78,
+      "bearish": 22
+    },
+    "MSFT": {
+      "bullish": 62,
+      "bearish": 38
+    },
+    "TSLA": {
+      "bullish": 55,
+      "bearish": 45
+    },
+    "NVDA": {
+      "bullish": 88,
+      "bearish": 12
+    }
+  },
+  "rankings": {
+    "one_month_outlook_best_to_worst": [
+      "NVDA",
+      "AAPL",
+      "TSLA",
+      "MSFT"
+    ],
+    "three_month_price_performance_best_to_worst": [
+      "AAPL",
+      "TSLA",
+      "MSFT",
+      "NVDA"
+    ],
+    "earnings_guidance_strength_best_to_worst": [
+      "NVDA",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ]
+  },
+  "disclaimer": "This data is for analytical purposes only and is not financial advice. One-month predictions are highly uncertain and should not be used for trading decisions. Sentiment percentages are derived from a blend of price momentum, earnings results, guidance, analyst ratings, and news tone."
+}
