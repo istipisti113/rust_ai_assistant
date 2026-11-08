@@ -13,10 +13,10 @@ pub async fn make_order(
     trail_percent: Option<u64>,
     order_type: String
 ) -> Result<(), String> {
-    let order : Result<order::CreateReq, ()> = match order_type.as_str() {
+    let order : order::CreateReq = match order_type.as_str() {
         "market" => {
             Ok( order::CreateReqInit {
-                type_: order::Type::Limit,
+                type_: order::Type::Market,
                 limit_price: None,
                 ..Default::default()
             }.init(symbol, side, amount))
@@ -24,7 +24,7 @@ pub async fn make_order(
 
         "limit" => {
             Ok( order::CreateReqInit {
-                type_: order::Type::Market,
+                type_: order::Type::Limit,
                 limit_price: Some(limit_price.ok_or("no limit price was given".to_string())?.into()),
                 ..Default::default()
             }.init(symbol, side, amount))
@@ -65,27 +65,16 @@ pub async fn make_order(
                     }.init(symbol, side, amount))
                 }
                 _ => {
-                    return Err("neither trail_price nor trail_percent were given when order type was trailing_stop".to_string());
+                    Err("neither trail_price nor trail_percent were given when order type was trailing_stop".to_string())
                 }
             }
         }
         wrong_type => {
-            return Err(format!("invalid order type: {}", wrong_type));
+            Err(format!("invalid order type: {}", wrong_type))
         }
-    };
+    }?;
 
-
-    match order {
-        Ok(ord) => {
-            match client.issue::<order::Create>(&ord).await {
-                Ok(_) => {
-                    return Ok(());
-                },
-                Err(_) => {
-                    return Err("error on order submission".to_string());
-                }
-            }
-        },
-        Err(_) => {unreachable!()}
-    }
+    client.issue::<order::Create>(&order).await
+        .map(|_|())
+        .map_err(|e|format!("error on order submission: {}", e.to_string()))
 }
