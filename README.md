@@ -1,10 +1,2 @@
-To get started, run the following:
-
-```
-$ nix develop
-$ hello
-Hello, world!
-```
-
-To automatically activate the shell, you might want to consider
-[direnv](https://github.com/nix-community/nix-direnv/).
+A cli _fork_ of the original project oriented to enabling AI models to analyze the stock market and create orders on my behalf. 
+It might make money, it might not, but learning how to write more complex tools for agents is the real takeaway here.
